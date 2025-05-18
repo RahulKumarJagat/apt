@@ -1,7 +1,7 @@
 import React from "react";
 import { useAtom } from "jotai";
-import Controls from "@/components/room/Controls.tsx"
 import { useNavigate, useParams } from "react-router";
+import { Mic, Camera, ScreenShare, Users, MessageSquare, CircleDot, Phone, Copy, X, Send } from 'lucide-react';
 import {
     micAtom,
     cameraAtom,
@@ -284,27 +284,27 @@ export default function Room() {
     }
 
     return (
-        <div className="min-h-screen flex flex-col">
+        <div className="min-h-screen flex flex-col bg-gradient-to-br from-sky-100 to-blue-50 dark:from-slate-900 dark:to-slate-800">
             <div className="h-screen grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
                 {/* Local video */}
-                <div className="relative">
+                <div className="relative rounded-2xl overflow-hidden backdrop-blur-sm bg-white/30 dark:bg-slate-900/30 border border-white/30 dark:border-slate-700/30 shadow-xl">
                     <video
                         ref={videoRef}
-                        className="w-full h-full object-cover rounded-lg shadow-lg"
+                        className="w-full h-full object-cover"
                         autoPlay
                         playsInline
                         muted
                     />
-                    <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded">
+                    <div className="absolute bottom-2 left-2 px-3 py-1 rounded-full backdrop-blur-md bg-black/20 text-white/90 text-sm font-medium">
                         You (Local) {isConnected ? '🟢' : '🔴'}
                     </div>
                 </div>
 
                 {/* Remote videos */}
                 {remotePeers.map((peer) => (
-                    <div key={peer.id} className="relative">
+                    <div key={peer.id} className="relative rounded-2xl overflow-hidden backdrop-blur-sm bg-white/30 dark:bg-slate-900/30 border border-white/30 dark:border-slate-700/30 shadow-xl">
                         <video
-                            className="w-full h-full object-cover rounded-lg shadow-lg"
+                            className="w-full h-full object-cover"
                             autoPlay
                             playsInline
                             ref={(element) => {
@@ -313,54 +313,198 @@ export default function Room() {
                                 }
                             }}
                         />
-                        <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded">
+                        <div className="absolute bottom-2 left-2 px-3 py-1 rounded-full backdrop-blur-md bg-black/20 text-white/90 text-sm font-medium">
                             {peer.name || 'Remote User'}
                         </div>
                     </div>
                 ))}
             </div>
 
-            <Controls
-                meetingId={roomId}
-                ToggleParticipants={toggleParticipants}
-                Leave={toggleLeave}
-                ToggleCamera={toggleCamera}
-                ToggleChat={toggleChat}
-                ToggleMic={toggleMic}
-                ToggleRecording={toggleRecording}
-                ToggleScreenShare={toggleScreenShare}
-            />
-
-            {/* Side panels */}
-            <div
-                className="fixed right-0 top-0 bottom-0 w-full lg:w-80 h-[calc(100vh-7.5rem)] lg:h-[calc(100vh-5rem)] bg-white shadow-lg transform transition-transform"
-                style={{ transform: chat ? 'translateX(0)' : 'translateX(100%)' }}>
-                <div className="p-4 border-b">
-                    <h2 className="text-lg font-bold">Chat</h2>
-                    <button onClick={toggleChat} className="absolute right-4 top-4">×</button>
-                </div>
-                <div className="p-4">
-                    {/* Chat interface will go here */}
-                    <p>Chat content will appear here</p>
-                </div>
-            </div>
-
-            <div
-                className="fixed right-0 top-0 bottom-0 w-full lg:w-80 h-[calc(100vh-7.5rem)] lg:h-[calc(100vh-5rem)] bg-white shadow-lg transform transition-transform"
-                style={{ transform: participants ? 'translateX(0)' : 'translateX(100%)' }}>
-                <div className="p-4 border-b">
+            <div 
+                className="fixed right-0 top-0 bottom-0 w-full lg:w-80 h-[calc(100vh-7.5rem)] lg:h-[calc(100vh-5rem)] 
+                backdrop-blur-md bg-white/70 dark:bg-slate-900/70 border-l border-white/30 dark:border-slate-700/30
+                shadow-xl transition-transform"
+                style={{ transform: participants ? 'translateX(0)' : 'translateX(100%)' }}
+            >
+                <div className="p-4 border-b border-white/30 dark:border-slate-700/30">
                     <h2 className="text-lg font-bold">Participants ({remotePeers.length + 1})</h2>
-                    <button onClick={toggleParticipants} className="absolute right-4 top-4">×</button>
+                    <button onClick={toggleParticipants} className="absolute right-4 top-4 text-gray-500 hover:text-gray-700">×</button>
                 </div>
                 <div className="p-4">
-                    <ul>
-                        <li className="py-2 border-b">You (Local) {isConnected ? '🟢' : '🔴'}</li>
+                    <ul className="space-y-2">
+                        <li className="py-2 px-3 rounded-lg backdrop-blur-sm bg-white/50 dark:bg-slate-800/50 border border-white/30 dark:border-slate-700/30">
+                            You (Local) {isConnected ? '🟢' : '🔴'}
+                        </li>
                         {remotePeers.map(peer => (
-                            <li key={peer.id} className="py-2 border-b">{peer.name || 'Remote User'}</li>
+                            <li key={peer.id} className="py-2 px-3 rounded-lg backdrop-blur-sm bg-white/50 dark:bg-slate-800/50 border border-white/30 dark:border-slate-700/30">
+                                {peer.name || 'Remote User'}
+                            </li>
                         ))}
                     </ul>
                 </div>
             </div>
+
+            {/* New dock-style controls */}
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+                <div className="flex items-center gap-2 p-2 rounded-2xl backdrop-blur-lg bg-white/80 dark:bg-slate-900/80 border border-white/20 dark:border-slate-700/20 shadow-lg">
+                    {/* Room ID display with copy button */}
+                    <div className="px-3 py-1.5 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-white/30 dark:border-slate-700/30 flex items-center gap-2 mr-2">
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                            {roomId}
+                        </span>
+                        <button className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                            <Copy className="h-4 w-4" />
+                        </button>
+                    </div>
+
+                    {/* Separator */}
+                    <div className="w-px h-8 bg-slate-200 dark:bg-slate-700/50"></div>
+
+                    {/* Main controls group */}
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={toggleMic}
+                            className={`p-3 rounded-xl transition-all ${
+                                mic 
+                                ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                                : 'bg-white/50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-700'
+                            }`}
+                        >
+                            <Mic className="h-5 w-5" />
+                        </button>
+                        
+                        <button 
+                            onClick={toggleCamera}
+                            className={`p-3 rounded-xl transition-all ${
+                                camera 
+                                ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                                : 'bg-white/50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-700'
+                            }`}
+                        >
+                            <Camera className="h-5 w-5" />
+                        </button>
+
+                        <button 
+                            onClick={toggleScreenShare}
+                            className={`p-3 rounded-xl transition-all ${
+                                screenShare 
+                                ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                                : 'bg-white/50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-700'
+                            }`}
+                        >
+                            <ScreenShare className="h-5 w-5" />
+                        </button>
+                    </div>
+
+                    {/* Separator */}
+                    <div className="w-px h-8 bg-slate-200 dark:bg-slate-700/50"></div>
+
+                    {/* Secondary controls group */}
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={toggleParticipants}
+                            className={`p-3 rounded-xl transition-all ${
+                                participants 
+                                ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                                : 'bg-white/50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-700'
+                            }`}
+                        >
+                            <Users className="h-5 w-5" />
+                        </button>
+
+                        <button 
+                            onClick={toggleChat}
+                            className={`p-3 rounded-xl transition-all ${
+                                chat 
+                                ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                                : 'bg-white/50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-700'
+                            }`}
+                        >
+                            <MessageSquare className="h-5 w-5" />
+                        </button>
+
+                        <button 
+                            onClick={toggleRecording}
+                            className={`p-3 rounded-xl transition-all ${
+                                recording 
+                                ? 'bg-red-500 text-white hover:bg-red-600' 
+                                : 'bg-white/50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-700'
+                            }`}
+                        >
+                            <CircleDot className="h-5 w-5" />
+                        </button>
+                    </div>
+
+                    {/* Separator */}
+                    <div className="w-px h-8 bg-slate-200 dark:bg-slate-700/50"></div>
+
+                    {/* Leave button */}
+                    <button 
+                        onClick={toggleLeave}
+                        className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-all flex items-center gap-2"
+                    >
+                        <Phone className="h-5 w-5" />
+                        <span className="font-medium">Leave</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* Chat panel */}
+            <div 
+                className="fixed right-0 bottom-24 w-full lg:w-96 h-[500px] 
+                backdrop-blur-lg bg-white/80 dark:bg-slate-900/80 border border-white/20 dark:border-slate-700/20
+                shadow-xl transition-all rounded-2xl mx-4 lg:mx-0 lg:right-6 overflow-hidden"
+                style={{ 
+                    transform: chat ? 'translateY(0)' : 'translateY(calc(100% + 6rem))',
+                    opacity: chat ? 1 : 0
+                }}
+            >
+                {/* Chat Header */}
+                <div className="p-4 border-b border-white/30 dark:border-slate-700/30 bg-gradient-to-r from-sky-500 to-blue-600">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                            <MessageSquare className="h-5 w-5" />
+                            Chat
+                        </h2>
+                        <button 
+                            onClick={toggleChat} 
+                            className="text-white/80 hover:text-white transition-colors"
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Chat Messages Area */}
+                <div className="flex-1 overflow-y-auto h-[calc(100%-8rem)] p-4 space-y-4">
+                    {/* Example messages - replace with your actual messages */}
+                    <div className="flex items-start gap-2">
+                        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-sm">
+                            You
+                        </div>
+                        <div className="flex-1 bg-white/50 dark:bg-slate-800/50 rounded-xl p-3 text-sm">
+                            Hello! How are you?
+                        </div>
+                    </div>
+                </div>
+
+                {/* Chat Input Area */}
+                <div className="p-4 border-t border-white/30 dark:border-slate-700/30 bg-white/50 dark:bg-slate-800/50">
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="text"
+                            placeholder="Type a message..."
+                            className="flex-1 bg-white dark:bg-slate-900 border border-white/30 dark:border-slate-700/30 
+                            rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button 
+                            className="p-2 rounded-xl bg-blue-500 text-white hover:bg-blue-600 transition-all"
+                        >
+                            <Send className="h-5 w-5" />
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
-    )
+    );
 }
