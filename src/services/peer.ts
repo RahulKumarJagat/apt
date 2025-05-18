@@ -1,3 +1,13 @@
+import { DirectMessage } from '../pages/room/types';
+
+// Update the PeerConnectionConfig interface
+interface PeerConnectionConfig {
+  onIceCandidate?: (candidate: RTCIceCandidate) => void;
+  onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
+  onTrack?: (event: RTCTrackEvent) => void;
+  onMessage?: (message: DirectMessage) => void;  // Add this line
+}
+
 // Define interfaces for better type safety
 interface PeerConnectionConfig {
   onIceCandidate?: (candidate: RTCIceCandidate) => void;
@@ -5,11 +15,12 @@ interface PeerConnectionConfig {
   onTrack?: (event: RTCTrackEvent) => void;
 }
 
-class PeerService {
+export class PeerService {
   private peer: RTCPeerConnection | null = null;
   private config: PeerConnectionConfig = {};
   private localStream: MediaStream | null = null;
   private remoteStream: MediaStream | null = null;
+  private dataChannel: RTCDataChannel | null = null;
 
   constructor() {
     this.createPeerConnection();
@@ -40,6 +51,19 @@ class PeerService {
         
         // Store remote stream
         this.remoteStream = event.streams[0];
+      };
+      
+      // Initialize data channel
+      this.dataChannel = this.peer.createDataChannel("chat");
+      this.dataChannel.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data) as DirectMessage;
+          if (this.config.onMessage) {
+            this.config.onMessage(message);
+          }
+        } catch (error) {
+          console.error("Error parsing message:", error);
+        }
       };
     }
   }
@@ -168,6 +192,21 @@ class PeerService {
   restartIce(): void {
     if (this.peer) {
       this.peer.restartIce();
+    }
+  }
+  
+  public sendMessage(message: DirectMessage) {
+    if (this.dataChannel && this.dataChannel.readyState === 'open') {
+      this.dataChannel.send(JSON.stringify(message));
+    }
+  }
+
+  public onMessage(callback: (message: DirectMessage) => void) {
+    if (this.dataChannel) {
+      this.dataChannel.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        callback(message);
+      };
     }
   }
 }

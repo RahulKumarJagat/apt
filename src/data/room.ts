@@ -1,12 +1,12 @@
 import { atom } from 'jotai';
 
 // State atoms for room controls
-export const micAtom = atom(true);
-export const cameraAtom = atom(true);
-export const screenShareAtom = atom(false);
-export const chatAtom = atom(false);
-export const recordingAtom = atom(false);
-export const participantsAtom = atom(false);
+export const micAtom = atom<boolean>(true);
+export const cameraAtom = atom<boolean>(true);
+export const screenShareAtom = atom<boolean>(false);
+export const chatAtom = atom<boolean>(false);
+export const recordingAtom = atom<boolean>(false);
+export const participantsAtom = atom<boolean>(false);
 
 // Room data atoms
 export const roomConnectionStatusAtom = atom<'connecting' | 'connected' | 'disconnected'>('disconnected');
