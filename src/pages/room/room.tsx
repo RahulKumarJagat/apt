@@ -20,6 +20,25 @@ interface RemotePeer {
     name?: string;
 }
 
+// Add this interface at the top with your other interfaces
+interface Participant {
+    id: string;
+    name?: string;
+    isConnected: boolean;
+    stream?: MediaStream | null;
+}
+
+// Add this interface near your other interfaces
+interface ChatMessage {
+    id: string;
+    sender: {
+        id: string;
+        name: string;
+    };
+    content: string;
+    timestamp: Date;
+}
+
 export default function Room() {
     const { roomId } = useParams<{ roomId: string }>();
     const navigate = useNavigate();
@@ -28,7 +47,8 @@ export default function Room() {
     const [screenShare, setScreenShare] = useAtom(screenShareAtom);
     const [chat, setChat] = useAtom(chatAtom);
     const [recording, setRecording] = useAtom(recordingAtom);
-    const [participants, setParticipants] = useAtom(participantsAtom);
+    const [showParticipants, setShowParticipants] = useAtom(participantsAtom); // This controls panel visibility
+    const [participantsList, setParticipantsList] = React.useState<Participant[]>([]); // This holds the actual participants
     const [stream, setStream] = React.useState<MediaStream | null>(null);
     const videoRef = React.useRef<HTMLVideoElement>(null);
 
@@ -42,6 +62,10 @@ export default function Room() {
     // Add these new states after your existing state declarations
     const [pinnedParticipant, setPinnedParticipant] = React.useState<string | null>(null);
     const [presentationMode, setPresentationMode] = React.useState(false);
+
+    // Add this state in your Room component
+    const [messages, setMessages] = React.useState<ChatMessage[]>([]);
+    const [messageInput, setMessageInput] = React.useState('');
 
     // Mock signaling server functions
     // In a real implementation, this would use WebSockets or another method
@@ -228,6 +252,17 @@ export default function Room() {
         return () => clearInterval(timer);
     }, []);
 
+    // Add this effect right after your other useEffect hooks
+    React.useEffect(() => {
+        // Update participantsList when remotePeers changes
+        setParticipantsList(remotePeers.map(peer => ({
+            id: peer.id,
+            name: peer.name,
+            isConnected: true,
+            stream: peer.stream || undefined // Convert null to undefined if needed
+        })));
+    }, [remotePeers]);
+
     // Rest of your existing functions
     function toggleMic() {
         setMic(!mic);
@@ -296,7 +331,7 @@ export default function Room() {
     }
 
     function toggleParticipants() {
-        setParticipants(!participants);
+        setShowParticipants(!showParticipants);
     }
 
     function toggleLeave() {
@@ -574,7 +609,7 @@ export default function Room() {
                                 <button 
                                     onClick={toggleParticipants}
                                     className={`p-3 rounded-xl transition-all ${
-                                        participants 
+                                        showParticipants 
                                         ? 'bg-blue-500 text-white hover:bg-blue-600' 
                                         : 'bg-white/50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-700'
                                     }`}
@@ -652,40 +687,62 @@ export default function Room() {
 
                         {/* Chat Messages Area */}
                         <div className="flex-1 overflow-y-auto h-[calc(100%-8rem)] p-4 space-y-4">
-                            {/* Example messages - replace with your actual messages */}
-                            <div className="flex items-start gap-2">
-                                <div className="flex-shrink-0 h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-sm">
-                                    You
-                                </div>
-                                <div className="flex-1 bg-white/10 dark:bg-slate-800/10 rounded-xl p-3 text-sm backdrop-blur-lg">
-                                    Hello! How are you?
-                                </div>
-                            </div>
+                            <AnimatePresence>
+                                {messages.map((message) => (
+                                    <motion.div
+                                        key={message.id}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0 }}
+                                        className={`flex items-start gap-2 ${
+                                            message.sender.id === 'local' ? 'flex-row-reverse' : 'flex-row'
+                                        }`}
+                                    >
+                                        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-sm">
+                                            {message.sender.name[0]}
+                                        </div>
+                                        <div className={`flex-1 max-w-[80%] ${
+                                            message.sender.id === 'local'
+                                            ? 'bg-blue-500/20 dark:bg-blue-600/20'
+                                            : 'bg-white/10 dark:bg-slate-800/10'
+                                        } rounded-xl p-3 text-sm backdrop-blur-lg`}>
+                                            <div className="font-medium mb-1 text-xs opacity-70">
+                                                {message.sender.name} • {new Date(message.timestamp).toLocaleTimeString()}
+                                            </div>
+                                            {message.content}
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </AnimatePresence>
                         </div>
 
                         {/* Chat Input Area */}
-                        <div className="p-4 border-t border-white/20 dark:border-slate-700/20 bg-white/10 dark:bg-slate-800/10 backdrop-blur-lg">
+                        <form onSubmit={handleSendMessage} className="p-4 border-t border-white/20 dark:border-slate-700/20 bg-white/10 dark:bg-slate-800/10 backdrop-blur-lg">
                             <div className="flex items-center gap-2">
                                 <input
                                     type="text"
+                                    value={messageInput}
+                                    onChange={(e) => setMessageInput(e.target.value)}
                                     placeholder="Type a message..."
                                     className="flex-1 bg-white/20 dark:bg-slate-900/20 border border-white/20 dark:border-slate-700/20 
                                     rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 backdrop-blur-lg"
                                 />
                                 <button 
-                                    className="p-2 rounded-xl bg-blue-500/80 text-white hover:bg-blue-600/90 transition-all backdrop-blur-lg"
+                                    type="submit"
+                                    disabled={!messageInput.trim()}
+                                    className="p-2 rounded-xl bg-blue-500/80 text-white hover:bg-blue-600/90 transition-all backdrop-blur-lg disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <Send className="h-5 w-5" />
                                 </button>
                             </div>
-                        </div>
+                        </form>
                     </motion.div>
                 )}
             </AnimatePresence>
 
             {/* Participants panel */}
             <AnimatePresence>
-                {participants && (
+                {showParticipants && (
                     <motion.div 
                         initial={{ y: "100%", opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
@@ -714,6 +771,7 @@ export default function Room() {
                         {/* Participants List */}
                         <div className="flex-1 overflow-y-auto h-[calc(100%-5rem)] p-4">
                             <ul className="space-y-2">
+                                {/* Local user */}
                                 <li className="py-2 px-3 rounded-xl backdrop-blur-sm bg-white/10 dark:bg-slate-800/10 border border-white/20 dark:border-slate-700/20 flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-sm">
@@ -721,15 +779,28 @@ export default function Room() {
                                         </div>
                                         <span className="text-sm font-medium">You (Local)</span>
                                     </div>
-                                    <span className="text-emerald-500">{isConnected ? '🟢' : '🔴'}</span>
+                                    <span className="text-emerald-500">🟢</span>
                                 </li>
-                                {remotePeers.map(peer => (
-                                    <li key={peer.id} className="py-2 px-3 rounded-xl backdrop-blur-sm bg-white/10 dark:bg-slate-800/10 border border-white/20 dark:border-slate-700/20 flex items-center gap-3">
-                                        <div className="h-8 w-8 rounded-full bg-slate-500 flex items-center justify-center text-white font-semibold text-sm">
-                                            {peer.name?.[0] || 'U'}
+
+                                {/* Remote participants */}
+                                {participantsList.map(participant => (
+                                    <motion.li 
+                                        key={participant.id}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -20 }}
+                                        className="py-2 px-3 rounded-xl backdrop-blur-sm bg-white/10 dark:bg-slate-800/10 border border-white/20 dark:border-slate-700/20 flex items-center justify-between"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-8 w-8 rounded-full bg-slate-500 flex items-center justify-center text-white font-semibold text-sm">
+                                                {participant.name?.[0] || 'U'}
+                                            </div>
+                                            <span className="text-sm font-medium">
+                                                {participant.name || 'Remote User'}
+                                            </span>
                                         </div>
-                                        <span className="text-sm font-medium">{peer.name || 'Remote User'}</span>
-                                    </li>
+                                        <span className="text-emerald-500">🟢</span>
+                                    </motion.li>
                                 ))}
                             </ul>
                         </div>
