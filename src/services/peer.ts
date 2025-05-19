@@ -1,21 +1,31 @@
 import { DirectMessage } from '../pages/room/types';
 
-// Update the PeerConnectionConfig interface
+// Define the base configuration interface
 interface PeerConnectionConfig {
   onIceCandidate?: (candidate: RTCIceCandidate) => void;
   onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
   onTrack?: (event: RTCTrackEvent) => void;
-  onMessage?: (message: DirectMessage) => void;  // Add this line
+  onMessage?: (message: DirectMessage) => void;
 }
 
-// Define interfaces for better type safety
-interface PeerConnectionConfig {
-  onIceCandidate?: (candidate: RTCIceCandidate) => void;
-  onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
-  onTrack?: (event: RTCTrackEvent) => void;
+// Define the service interface with all available methods
+export interface IPeerService {
+    init(config: PeerConnectionConfig): void;
+    getAnswer(offer?: RTCSessionDescriptionInit): Promise<RTCSessionDescriptionInit | undefined>;
+    setAnswer(answer: RTCSessionDescriptionInit): Promise<void>;
+    getOffer(): Promise<RTCSessionDescriptionInit | undefined>;
+    setOffer(offer: RTCSessionDescriptionInit): Promise<void>;
+    addIceCandidate(candidate: RTCIceCandidate): void;
+    addStream(stream: MediaStream): void;
+    getRemoteStream(): MediaStream | null;
+    cleanup(): void;
+    restartIce(): void;
+    sendMessage(message: DirectMessage): void;
+    onMessage(callback: (message: DirectMessage) => void): void;
 }
 
-export class PeerService {
+// Implement the service class
+export class PeerService implements IPeerService {
   private peer: RTCPeerConnection | null = null;
   private config: PeerConnectionConfig = {};
   private localStream: MediaStream | null = null;

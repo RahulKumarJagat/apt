@@ -12,6 +12,8 @@ import {
 } from "@/data/room";
 import { peerService } from "@/services/peer";
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRoomChat } from "@/hooks/useRoomChat";
+import { socket } from '@/services/socket';
 
 // Define interface for remote peer
 interface RemotePeer {
@@ -39,217 +41,126 @@ interface ChatMessage {
     timestamp: Date;
 }
 
+// Add interface for user type
+interface RoomUser {
+    userId: string;
+    userName: string;
+}
+
 export default function Room() {
     const { roomId } = useParams<{ roomId: string }>();
     const navigate = useNavigate();
+    
+    // Jotai atoms
     const [mic, setMic] = useAtom(micAtom);
     const [camera, setCamera] = useAtom(cameraAtom);
     const [screenShare, setScreenShare] = useAtom(screenShareAtom);
     const [chat, setChat] = useAtom(chatAtom);
     const [recording, setRecording] = useAtom(recordingAtom);
-    const [showParticipants, setShowParticipants] = useAtom(participantsAtom); // This controls panel visibility
-    const [participantsList, setParticipantsList] = React.useState<Participant[]>([]); // This holds the actual participants
-    const [stream, setStream] = React.useState<MediaStream | null>(null);
-    const videoRef = React.useRef<HTMLVideoElement>(null);
+    const [showParticipants, setShowParticipants] = useAtom(participantsAtom);
 
-    // New state for managing peer connections
+    // Local states
+    const [participantsList, setParticipantsList] = React.useState<Participant[]>([]);
+    const [stream, setStream] = React.useState<MediaStream | null>(null);
     const [remotePeers, setRemotePeers] = React.useState<RemotePeer[]>([]);
     const [isConnected, setIsConnected] = React.useState<boolean>(false);
     const [meetingDuration, setMeetingDuration] = React.useState<string>('00:00:00');
     const [showHeader, setShowHeader] = React.useState(false);
     const [showControls, setShowControls] = React.useState(true);
-
-    // Add these new states after your existing state declarations
+    const [messageInput, setMessageInput] = React.useState('');
     const [pinnedParticipant, setPinnedParticipant] = React.useState<string | null>(null);
     const [presentationMode, setPresentationMode] = React.useState(false);
 
-    // Add this state in your Room component
-    const [messages, setMessages] = React.useState<ChatMessage[]>([]);
-    const [messageInput, setMessageInput] = React.useState('');
+    const videoRef = React.useRef<HTMLVideoElement>(null);
 
-    // Mock signaling server functions
-    // In a real implementation, this would use WebSockets or another method
-    const mockSignalingChannel = {
-        // Simulate sending offer to other peers
-        sendOffer: async (offer: RTCSessionDescriptionInit) => {
-            console.log("Sending offer to peers:", offer);
-            // In a real implementation, this would send to a server
-            // For now, we'll just simulate receiving an answer after a delay
-            setTimeout(() => {
-                handleRemoteAnswer({
-                    type: 'answer',
-                    sdp: 'mock_sdp_answer_from_remote_peer'
-                }, 'remote-user-123');
-            }, 1000);
-        },
-        // Simulate sending answer back to an offering peer
-        sendAnswer: async (answer: RTCSessionDescriptionInit, peerId: string) => {
-            console.log(`Sending answer to peer ${peerId}:`, answer);
-            // In a real implementation, this would send to a server
-        },
-        // Simulate sending ICE candidate to a peer
-        sendIceCandidate: (candidate: RTCIceCandidate, peerId: string) => {
-            console.log(`Sending ICE candidate to peer ${peerId}:`, candidate);
-            // In a real implementation, this would send to a server
-        }
+    // Chat hook
+    const { messages, sendMessage } = useRoomChat({
+        roomId: roomId || '',
+        userName: 'You'
+    });
+
+    // Add handleSendMessage function
+    const handleSendMessage = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!messageInput.trim()) return;
+        
+        sendMessage(messageInput);
+        setMessageInput('');
     };
 
-    // Functions to handle peer connection
-    const initializePeerConnection = React.useCallback(() => {
-        if (!stream) return;
-
-        // Initialize peer connection with config
-        peerService.init({
-            onIceCandidate: (candidate) => {
-                // Send this ICE candidate to all connected peers via signaling
-                remotePeers.forEach(peer => {
-                    mockSignalingChannel.sendIceCandidate(candidate, peer.id);
-                });
-            },
-            onConnectionStateChange: (state) => {
-                console.log("Peer connection state changed:", state);
-                setIsConnected(state === 'connected');
-            },
-            onTrack: (event) => {
-                console.log("Received remote track:", event);
-                // When we receive a track from remote peer, add it to our remote streams
-                if (event.streams && event.streams[0]) {
-                    const remoteStream = event.streams[0];
-                    // Create a new remote peer entry or update existing
-                    setRemotePeers(prevPeers => {
-                        // For simplicity, assume this is from a new peer
-                        // In a real app, you'd match it to the correct peer ID
-                        const newPeerId = `remote-peer-${Date.now()}`;
-                        return [...prevPeers, {
-                            id: newPeerId,
-                            stream: remoteStream,
-                            name: `User ${prevPeers.length + 1}`
-                        }];
-                    });
-                }
-            }
-        });
-
-        // Add local stream to peer connection
-        peerService.addStream(stream);
-
-        // Create and send an offer to initiate connection
-        createAndSendOffer();
-    }, [stream, remotePeers]);
-
-    // Function to create and send an offer
-    const createAndSendOffer = async () => {
-        try {
-            const offer = await peerService.getOffer();
-            if (offer) {
-                // Send this offer to all potential peers via signaling server
-                mockSignalingChannel.sendOffer(offer);
-            }
-        } catch (error) {
-            console.error("Error creating offer:", error);
-        }
-    };
-
-    // Function to handle incoming offer from remote peer
+    // Fix handleRemoteOffer implementation
     const handleRemoteOffer = async (offer: RTCSessionDescriptionInit, peerId: string) => {
         try {
-            // Set the remote description (offer)
-            await peerService.setOffer(offer);
-
-            // Create an answer
-            const answer = await peerService.getAnswer();
-            if (answer) {
-                // Send the answer back to the peer who sent the offer
-                mockSignalingChannel.sendAnswer(answer, peerId);
-            }
-        } catch (error) {
-            console.error("Error handling remote offer:", error);
-        }
-    };
-
-    // Function to handle incoming answer from remote peer
-    const handleRemoteAnswer = async (answer: RTCSessionDescriptionInit, peerId: string) => {
-        try {
-            await peerService.setAnswer(answer);
-            console.log(`Set remote answer from peer ${peerId}`);
-        } catch (error) {
-            console.error("Error handling remote answer:", error);
-        }
-    };
-
-    // // Function to handle incoming ICE candidate from remote peer
-    // const handleRemoteIceCandidate = (candidate: RTCIceCandidate) => {
-    //     try {
-    //         peerService.addIceCandidate(candidate);
-    //     } catch (error) {
-    //         console.error("Error adding ICE candidate:", error);
-    //     }
-    // };
-
-    // Initialize local media and peer connection
-    React.useEffect(() => {
-        if (!navigator) {
-            console.error("navigator is not defined");
-            return;
-        }
-
-        navigator.mediaDevices.getUserMedia({ video: camera, audio: mic })
-            .then((mediaStream) => {
-                setStream(mediaStream);
-                if (videoRef.current) {
-                    videoRef.current.srcObject = mediaStream;
+            await peerService.init({
+                onTrack: (event) => {
+                    if (event.streams?.[0]) {
+                        setRemotePeers(prev => [...prev, {
+                            id: peerId,
+                            stream: event.streams[0],
+                            name: `User ${prev.length + 1}`
+                        }]);
+                    }
                 }
-            })
-            .catch((error) => {
-                console.error("Error accessing media devices.", error);
             });
+            
+            const answer = await peerService.createAnswer(offer);
+            socket.emit('webrtc:answer', { answer, peerId, roomId });
+        } catch (error) {
+            console.error('Error handling remote offer:', error);
+        }
+    };
+
+    // Socket connection effect
+    React.useEffect(() => {
+        if (!socket.connected) {
+            socket.connect();
+        }
+
+        const handleConnect = () => setIsConnected(true);
+        const handleDisconnect = () => setIsConnected(false);
+
+        socket.on('connect', handleConnect);
+        socket.on('disconnect', handleDisconnect);
+        
+        // Add room join event
+        socket.emit('room:join', { roomId, userName: 'You' });
 
         return () => {
-            // Cleanup function to stop all tracks when component unmounts
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-            // Clean up peer connections
-            peerService.cleanup();
+            socket.off('connect', handleConnect);
+            socket.off('disconnect', handleDisconnect);
+            socket.emit('room:leave', roomId);
         };
-    }, [camera, mic]);
+    }, [roomId]);
 
-    // Effect to initialize peer connection when stream is available
+    // Update participants effect to handle user type
     React.useEffect(() => {
-        if (stream) {
-            initializePeerConnection();
-        }
+        socket.on('user:joined', (data: RoomUser) => {
+            setParticipantsList(prev => [...prev, {
+                id: data.userId,
+                name: data.userName,
+                isConnected: true
+            }]);
+        });
 
-        // Mock receiving an offer after joining room (simulating another peer)
-        setTimeout(() => {
-            if (stream) {
-                handleRemoteOffer({
-                    type: 'offer',
-                    sdp: 'mock_sdp_offer_from_remote_peer'
-                }, 'remote-user-456');
-            }
-        }, 2000);
-
-    }, [stream, initializePeerConnection]);
-
-    // Timer effect to update meeting duration
-    React.useEffect(() => {
-        const startTime = new Date();
-        
-        const timer = setInterval(() => {
-            const now = new Date();
-            const diff = now.getTime() - startTime.getTime();
-            
-            const hours = Math.floor(diff / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-            
-            setMeetingDuration(
-                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+        socket.on('user:left', (data) => {
+            setParticipantsList(prev => 
+                prev.filter(p => p.id !== data.userId)
             );
-        }, 1000);
+        });
 
-        return () => clearInterval(timer);
+        socket.on('room:users', (users) => {
+            setParticipantsList(users.map(user => ({
+                id: user.userId,
+                name: user.userName,
+                isConnected: true
+            })));
+        });
+
+        return () => {
+            socket.off('user:joined');
+            socket.off('user:left');
+            socket.off('room:users');
+        };
     }, []);
 
     // Add this effect right after your other useEffect hooks
